@@ -5,21 +5,6 @@
 #include <fcntl.h>
 #include <windows.h>
 #include "types.h"
-#include <vector>
-
-const u32 SCREEN_WIDTH = 400;
-const u32 SCREEN_HEIGHT = 200;
-
-CHAR_INFO map[SCREEN_HEIGHT][SCREEN_WIDTH];
-//std::vector<std::vector<CHAR_INFO>> map;
-
-HANDLE hOutput;
-HANDLE rOutput;
-COORD dwBufferSize;
-COORD dwBufferCoord;
-SMALL_RECT rcRegion;
-
-RECT r;
 
 void get_desktop_resolution(int& horizontal, int& vertical)
 {
