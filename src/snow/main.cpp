@@ -4,6 +4,8 @@
 #include <io.h>
 #include <fcntl.h>
 #include <windows.h>
+#include <vector>
+
 #include "types.h"
 
 void get_screen_resolution(int& horizontal, int& vertical)
@@ -21,6 +23,26 @@ struct Vec2
 	i32 y;
 };
 
+struct Pixel
+{
+	Vec2 position;
+	WCHAR value;
+};
+
+
+struct DrawComponent
+{
+	Vec2 position;
+	std::vector<Pixel> pixels;
+};
+
+struct Actor
+{
+	Vec2 position;
+	DrawComponent draw_component;
+};
+
+
 struct ConsoleRenderer
 {
 	HWND handle;
@@ -33,7 +55,7 @@ struct ConsoleRenderer
 	i32 framebuffer_byte_size;
 	HANDLE output_handle;
 
-	void init()
+	void init(const Vec2& console_resolution = Vec2{-1, -1})
 	{
 		// 1. get console window
 		handle = GetConsoleWindow();
@@ -42,8 +64,18 @@ struct ConsoleRenderer
 		get_screen_resolution(screen_resolution.x, screen_resolution.y);
 
 		// 3. reposition & resize
-		resolution.x = screen_resolution.x / 2;
-		resolution.y = screen_resolution.y / 2;
+		// by default, the console will take half the resolution of the screen
+		if (console_resolution.x == -1)
+		{
+			resolution.x = screen_resolution.x / 2;
+			resolution.y = screen_resolution.y / 2;
+		}
+		else
+		{
+			resolution = console_resolution;
+		}
+		
+;
 
 		position.x = (screen_resolution.x - resolution.x) / 2;
 		position.y = (screen_resolution.y - resolution.y) / 2;
@@ -91,17 +123,60 @@ struct ConsoleRenderer
 		framebuffer[position.x + position.y * columns_count].Char.UnicodeChar = value;
 		framebuffer[position.x + position.y * columns_count].Attributes = 0x0A;
 	}
-};
 
+	void draw(const Pixel& pixel)
+	{
+		draw(pixel.position, pixel.value);
+	}
+
+	void draw(const DrawComponent& draw_component)
+	{
+		for (u32 i = 0; i < draw_component.pixels.size(); ++i)
+		{
+			i32 x = draw_component.position.x + draw_component.pixels[i].position.x;
+			i32 y = draw_component.position.y + draw_component.pixels[i].position.y;
+
+			draw({x, y}, draw_component.pixels[i].value);
+		}
+	}
+
+	void draw(const Actor& actor)
+	{
+		for (u32 i = 0; i < actor.draw_component.pixels.size(); ++i)
+		{
+			const DrawComponent& draw_component = actor.draw_component;
+
+			i32 x = actor.position.x + draw_component.position.x + draw_component.pixels[i].position.x;
+			i32 y = actor.position.y + draw_component.position.y + draw_component.pixels[i].position.y;
+
+			draw({ x, y }, draw_component.pixels[i].value);
+		}
+	}
+};
 
 
 int main()
 {
 	ConsoleRenderer console_renderer;
 
-	console_renderer.init();
+	console_renderer.init({1920, 1080});
 
-	Vec2 ship_position{30, 30};
+	Actor ship
+	{ 
+		// position
+		{ 30, 31 }, 
+		//draw component
+		{
+			// position
+			{0, 0}, 
+			// pixels
+			{ 
+				{ {0, 0}, '<'},
+				{ {1, 0}, 'o'},
+				{ {2, 0}, '|'}
+			}
+		}
+	};
 
 	while (true)
 	{
@@ -109,11 +184,9 @@ int main()
 
 		console_renderer.clear();
 
-		ship_position.x = (ship_position.x + 1) % console_renderer.columns_count;
+		ship.position.x = (ship.position.x + 1) % console_renderer.columns_count;
 
-		console_renderer.draw(ship_position, '<');
-		console_renderer.draw({ ship_position.x + 1, ship_position.y}, 'o');
-		console_renderer.draw({ ship_position.x + 2, ship_position.y }, '|');
+		console_renderer.draw(ship);
 
 		console_renderer.render_buffer();
 	}
