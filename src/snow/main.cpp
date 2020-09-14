@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <windows.h>
 #include <vector>
+#include <string>
 
 #include "types.h"
 
@@ -23,8 +24,11 @@ struct Vec2
 	i32 y;
 };
 
-struct Pixel
+struct Cell
 {
+	Cell() : position(), value() {}
+	Cell(Vec2 pos, WCHAR val) : position(pos), value(val) {}
+
 	Vec2 position;
 	WCHAR value;
 };
@@ -33,8 +37,80 @@ struct Pixel
 struct DrawComponent
 {
 	Vec2 position;
-	std::vector<Pixel> pixels;
+	std::vector<Cell> cells;
+
+	static void from_text(const std::string& text, DrawComponent& output)
+	{
+		output.cells.reserve(text.length());
+
+		Vec2 position = output.position;
+		for (i32 i = 0; i < text.length(); ++i)
+		{
+			if (text[i] == '\n')
+			{
+				position.x = output.position.x;
+				position.y++;
+				continue;
+			}
+			else if (text[i] == '\t')
+			{
+				position.x += 4;
+				continue;
+			}
+			else
+			{
+				output.cells.emplace_back(position, text[i]);
+				position.x++;
+			}
+
+		}
+	}
 };
+
+struct KeybordInputComponent
+{
+	Vec2 position;
+	Vec2 current_position;
+	std::vector<Cell> cells;
+
+	void handle_input(const WCHAR value)
+	{
+		if (value == '\n')
+		{
+			current_position.x = position.x;
+			current_position.y++;
+		}
+		else if (value == '\t')
+		{
+			current_position.x += 4;
+		}
+		else
+		{
+			cells.emplace_back(current_position, value);
+			current_position.x++;
+		}
+	}
+
+	void erase_last()
+	{
+		Vec2 last_position = cells.back().position;
+		if (current_position.x == last_position.x - 1 && current_position.y == last_position.y)
+		{
+			cells.pop_back();
+			current_position = last_position;
+		}
+		else
+		{
+			current_position.x = last_position.x + 1;
+			current_position.y = last_position.y;
+		}
+	}
+};
+
+
+
+
+
 
 struct Actor
 {
@@ -75,8 +151,6 @@ struct ConsoleRenderer
 			resolution = console_resolution;
 		}
 		
-;
-
 		position.x = (screen_resolution.x - resolution.x) / 2;
 		position.y = (screen_resolution.y - resolution.y) / 2;
 
@@ -124,32 +198,32 @@ struct ConsoleRenderer
 		framebuffer[position.x + position.y * columns_count].Attributes = 0x0A;
 	}
 
-	void draw(const Pixel& pixel)
+	void draw(const Cell& pixel)
 	{
 		draw(pixel.position, pixel.value);
 	}
 
 	void draw(const DrawComponent& draw_component)
 	{
-		for (u32 i = 0; i < draw_component.pixels.size(); ++i)
+		for (u32 i = 0; i < draw_component.cells.size(); ++i)
 		{
-			i32 x = draw_component.position.x + draw_component.pixels[i].position.x;
-			i32 y = draw_component.position.y + draw_component.pixels[i].position.y;
+			i32 x = draw_component.position.x + draw_component.cells[i].position.x;
+			i32 y = draw_component.position.y + draw_component.cells[i].position.y;
 
-			draw({x, y}, draw_component.pixels[i].value);
+			draw({x, y}, draw_component.cells[i].value);
 		}
 	}
 
 	void draw(const Actor& actor)
 	{
-		for (u32 i = 0; i < actor.draw_component.pixels.size(); ++i)
+		for (u32 i = 0; i < actor.draw_component.cells.size(); ++i)
 		{
 			const DrawComponent& draw_component = actor.draw_component;
 
-			i32 x = actor.position.x + draw_component.position.x + draw_component.pixels[i].position.x;
-			i32 y = actor.position.y + draw_component.position.y + draw_component.pixels[i].position.y;
+			i32 x = actor.position.x + draw_component.position.x + draw_component.cells[i].position.x;
+			i32 y = actor.position.y + draw_component.position.y + draw_component.cells[i].position.y;
 
-			draw({ x, y }, draw_component.pixels[i].value);
+			draw({ x, y }, draw_component.cells[i].value);
 		}
 	}
 };
@@ -178,6 +252,9 @@ int main()
 		}
 	};
 
+	DrawComponent title{ {50, 5} };
+	DrawComponent::from_text("Chess 2.0\nYoooooo", title);
+
 	while (true)
 	{
 		Sleep(16);
@@ -187,6 +264,7 @@ int main()
 		ship.position.x = (ship.position.x + 1) % console_renderer.columns_count;
 
 		console_renderer.draw(ship);
+		console_renderer.draw(title);
 
 		console_renderer.render_buffer();
 	}
